@@ -69,19 +69,6 @@ Beam = Data.define(:position, :direction) do
   end
 end
 
-State = Data.define(:board, :beams) do
-  def move
-    new_beams = beams.flat_map do |beam|
-      beam.forward(board.at(beam.lookahead))
-    end
-    with(beams: new_beams)
-  end
-
-  def dedup
-    with(beams: beams.uniq)
-  end
-end
-
 class Board
   def initialize(lines)
     @lines = lines
@@ -103,18 +90,35 @@ class Board
   end
 end
 
+def bfs(board, initial_vertex)
+  queue = [initial_vertex]
+  seen = Set.new
+  until queue.empty?
+    u = queue.shift
+    seen << u
+    neighbors = u.forward(board.at(u.lookahead))
+    neighbors.each do |v|
+      next if seen.include?(v)
+      queue << v
+    end
+  end
+  seen
+end
+
 lines = File.read("day16.in").split("\n")
 board = Board.new(lines)
 
-state = State.new(board, [Beam.new(Position.new(0, -1), :right)])
+initial_states = []
+initial_states += (0...board.rows_count).map { Beam.new(Position.new(_1, -1), :right) }
+initial_states += (0...board.rows_count).map { Beam.new(Position.new(_1, board.columns_count), :left) }
+initial_states += (0...board.columns_count).map { Beam.new(Position.new(-1, _1), :down) }
+initial_states += (0...board.columns_count).map { Beam.new(Position.new(_1, board.rows_count), :up) }
 
-seen_beams = Set.new
-
-until state.beams.all? { seen_beams.include?(_1) } do
-  state.beams.each { |beam| seen_beams << beam }
-  state = state.dedup
-  state = state.move
+result = 0
+initial_states.each do |state|
+  seen = bfs(board, state)
+  energized_positions = Set.new(seen.map(&:position))
+  result = [result, energized_positions.size - 1].max
 end
 
-energized_positions = Set.new(seen_beams.map(&:position))
-puts energized_positions.size - 1
+puts result
